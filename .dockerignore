@@ -1,7 +1,6 @@
-# Ignore Postgres data volume
+ny_taxi_postgres_data
 01-docker-terraform/ny_taxi_postgres_data
-
-# Optional: Ignore other large or sensitive files
-*.env
+*/ny_taxi_postgres_data
+**/ny_taxi_postgres_data
 __pycache__/
-*.pyc
+*.ipynb_checkpoints
