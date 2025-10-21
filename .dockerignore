@@ -1,0 +1,7 @@
+# Ignore Postgres data volume
+01-docker-terraform/ny_taxi_postgres_data
+
+# Optional: Ignore other large or sensitive files
+*.env
+__pycache__/
+*.pyc
