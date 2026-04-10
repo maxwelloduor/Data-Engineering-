@@ -18,6 +18,16 @@ __pycache__/
 .terraform.lock.hcl
 *.tfvars
 *.tfvars.json
+crash.log
+crash.*.log
+verride.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.tfstate.lock.info
+
+01-docker-terraform/TERRADEMO/keys/
+*.json
 
 .env
 .docker/
@@ -25,3 +35,4 @@ __pycache__/
 .DS_Store
 .vscode/
 .idea/
+
