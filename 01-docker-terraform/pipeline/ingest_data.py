@@ -6,6 +6,9 @@ import pandas as pd
 from sqlalchemy import create_engine
 from tqdm.auto import tqdm
 
+# -------------------------
+# Yellow taxi schema
+# -------------------------
 dtype = {
     "VendorID": "Int64",
     "passenger_count": "Int64",
@@ -30,13 +33,15 @@ parse_dates = [
     "tpep_dropoff_datetime"
 ]
 
-
+# -------------------------
+# Generic ingest (chunked)
+# -------------------------
 def ingest_data(
         url: str,
         engine,
         target_table: str,
         chunksize: int = 100000,
-) -> pd.DataFrame:
+) -> None:
     df_iter = pd.read_csv(
         url,
         dtype=dtype,
@@ -47,22 +52,23 @@ def ingest_data(
 
     first_chunk = next(df_iter)
 
+    # Create table
     first_chunk.head(0).to_sql(
         name=target_table,
         con=engine,
         if_exists="replace"
     )
-
     print(f"Table {target_table} created")
 
+    # Insert first chunk
     first_chunk.to_sql(
         name=target_table,
         con=engine,
         if_exists="append"
     )
-
     print(f"Inserted first chunk: {len(first_chunk)}")
 
+    # Insert remaining chunks
     for df_chunk in tqdm(df_iter):
         df_chunk.to_sql(
             name=target_table,
@@ -71,40 +77,83 @@ def ingest_data(
         )
         print(f"Inserted chunk: {len(df_chunk)}")
 
-    print(f'done ingesting to {target_table}')
+    print(f"Done ingesting to {target_table}")
 
+
+# -------------------------
+# Taxi Zone Lookup ingest
+# -------------------------
+def ingest_zones(
+        url: str,
+        engine,
+        target_table: str = "zones"
+) -> None:
+    print("Loading taxi zone lookup data...")
+
+    df = pd.read_csv(url)
+    
+    df.to_sql(
+        name=target_table,
+        con=engine,
+        if_exists="replace",
+        index=False
+    )
+    
+    print(f"Taxi zone lookup ingested into {target_table} ({len(df)} rows)")
+
+
+# -------------------------
+# CLI
+# -------------------------
 @click.command()
-@click.option("--pg-user", default="root", show_default=True, help="Postgres username")
-@click.option("--pg-pass", default="root", show_default=True, help="Postgres password")
-@click.option("--pg-host", default="localhost", show_default=True, help="Postgres host")
-@click.option("--pg-port", default="5432", show_default=True, help="Postgres port")
-@click.option("--pg-db", default="ny_taxi", show_default=True, help="Postgres database name")
-@click.option("--year", default=2021, show_default=True, type=int, help="Year of the taxi data file")
-@click.option("--month", default=1, show_default=True, type=int, help="Month of the taxi data file")
-@click.option("--chunksize", default=100000, show_default=True, type=int, help="CSV read chunk size")
-@click.option("--target-table", default="yellow_taxi_data", show_default=True, help="Target PostgreSQL table")
+@click.option("--pg-user", default="root", show_default=True)
+@click.option("--pg-pass", default="root", show_default=True)
+@click.option("--pg-host", default="localhost", show_default=True)
+@click.option("--pg-port", default="5432", show_default=True)
+@click.option("--pg-db", default="ny_taxi", show_default=True)
+@click.option("--year", default=2021, show_default=True, type=int)
+@click.option("--month", default=1, show_default=True, type=int)
+@click.option("--chunksize", default=100000, show_default=True, type=int)
+@click.option("--target-table", default="yellow_taxi_data", show_default=True)
 def main(
-    pg_user: str,
-    pg_pass: str,
-    pg_host: str,
-    pg_port: str,
-    pg_db: str,
-    year: int,
-    month: int,
-    chunksize: int,
-    target_table: str,
+    pg_user,
+    pg_pass,
+    pg_host,
+    pg_port,
+    pg_db,
+    year,
+    month,
+    chunksize,
+    target_table,
 ):
-    engine = create_engine(f'postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}')
-    url_prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow'
+    engine = create_engine(
+        f'postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}'
+    )
 
-    url = f'{url_prefix}/yellow_tripdata_{year:04d}-{month:02d}.csv.gz'
+    # -------------------------
+    # Yellow taxi data
+    # -------------------------
+    url_prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow'
+    taxi_url = f'{url_prefix}/yellow_tripdata_{year:04d}-{month:02d}.csv.gz'
 
     ingest_data(
-        url=url,
+        url=taxi_url,
         engine=engine,
-        target_table=target_table,
+        target_table="yellow_taxi_trips",
         chunksize=chunksize
     )
+
+    # -------------------------
+    # Taxi zone lookup data
+    # -------------------------
+    zone_url = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
+
+    ingest_zones(
+        url=zone_url,
+        engine=engine,
+        target_table="zones"
+    )
+
 
 if __name__ == '__main__':
     main()
